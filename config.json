@@ -1,0 +1,52 @@
+{
+  "idle_seconds": 300,
+  "animation_fps": 3,
+  "brightness": 65,
+  "reconnect_seconds": 2,
+  "foreground_poll_seconds": 0.5,
+  "foreground_debounce_seconds": 0.35,
+  "hid_read_timeout_ms": 100,
+  "screensaver_hold_key": 9,
+  "screensaver_hold_seconds": 5,
+  "audio_overlay_seconds": 1.5,
+  "audio_device_hold_key": 11,
+  "audio_device_hold_seconds": 2,
+  "audio_output_devices": [],
+  "market_enabled": true,
+  "market_refresh_seconds": 15,
+  "market_closed_refresh_seconds": 1800,
+  "market_stale_seconds": 180,
+  "market_watchlist": [
+    {"symbol": "VOW.DE", "label": "VW"},
+    {"symbol": "MWRE.DE", "label": "ETF"},
+    {"symbol": "NVDA", "label": "NVIDIA"}
+  ],
+  "ignored_processes": [
+    "searchhost.exe",
+    "startmenuexperiencehost.exe",
+    "shellexperiencehost.exe",
+    "textinputhost.exe"
+  ],
+  "hardware_buttons": {
+    "6": {"type": "internal", "name": "previous_profile"},
+    "7": {"type": "internal", "name": "next_profile"},
+    "8": {"type": "internal", "name": "toggle_lock"},
+    "9": {"type": "internal", "name": "system_volume_mute"},
+    "10": {"type": "internal", "name": "application_volume_mute"},
+    "11": {"type": "internal", "name": "microphone_volume_mute"}
+  },
+  "encoders": {
+    "0": {
+      "left": {"type": "internal", "name": "system_volume_down"},
+      "right": {"type": "internal", "name": "system_volume_up"}
+    },
+    "1": {
+      "left": {"type": "internal", "name": "application_volume_down"},
+      "right": {"type": "internal", "name": "application_volume_up"}
+    },
+    "2": {
+      "left": {"type": "internal", "name": "microphone_volume_down"},
+      "right": {"type": "internal", "name": "microphone_volume_up"}
+    }
+  }
+}
