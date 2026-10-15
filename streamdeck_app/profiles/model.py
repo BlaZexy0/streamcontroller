@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from PIL import Image
 
     from ..core.interfaces import DeckInterface
+    from ..settings import Settings
 
 
 Action = dict[str, Any]
@@ -25,6 +26,7 @@ class ProfileContext:
     request_render: Callable[[], None]
     set_key_image: Callable[[int, "Image.Image | bytes"], None]
     show_overlay: Callable[[dict[int, "Image.Image | bytes"], float], None]
+    settings: "Settings | None" = None
 
 
 class ProfileLifecycle:

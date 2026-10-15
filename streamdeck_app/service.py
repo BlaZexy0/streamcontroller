@@ -7,12 +7,14 @@ import time
 from pathlib import Path
 from typing import Callable
 
+from .control import ControllerControl
 from .core.actions import execute
 from .core.audio import AudioController, AudioUnavailableError, WindowsAudioController
 from .core.device import Deck, DeckConnectionError, decode_event
 from .core.foreground import ForegroundWindow, current_window
 from .core.interfaces import DeckInterface
 from .market import MarketDataWorker, MarketResult, YahooMarketDataProvider
+from .profile_overrides import load_profiles
 from .profiles import ALL_PROFILES, Profile, ProfileContext, ProfileLifecycle
 from .profiles.model import Action
 from .profiles.reload import ProfileReloader
@@ -27,7 +29,7 @@ from .screens import (
     profile_tile,
     volume_overlay,
 )
-from .settings import Settings, load_settings, validate_action
+from .settings import Settings, SettingsError, load_settings, validate_action
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +46,10 @@ class ControllerService:
         dev_reload: bool = False,
         audio_controller: AudioController | None = None,
         market_worker: MarketDataWorker | None = None,
+        control: ControllerControl | None = None,
     ) -> None:
+        self.config_path = config_path
+        self.control = control
         self.settings: Settings = load_settings(config_path)
         self.deck_factory = deck_factory
         self.foreground_provider = foreground_provider
@@ -57,7 +62,7 @@ class ControllerService:
                 refresh_seconds=self.settings.market_refresh_seconds,
                 closed_refresh_seconds=self.settings.market_closed_refresh_seconds,
             )
-        self.profile_runtime = ProfileRuntime(ALL_PROFILES)
+        self.profile_runtime = ProfileRuntime(load_profiles(config_path, ALL_PROFILES))
         self.profile_reloader = ProfileReloader() if dev_reload else None
         self.display = DisplayController()
         self.validate_profiles(self.profiles)
@@ -72,6 +77,9 @@ class ControllerService:
         self.audio_device_hold_started_at: float | None = None
         self.audio_device_hold_triggered = False
         self.market_revision = -1
+        self.paused = False
+        if self.control is not None:
+            self.control.update(profiles=tuple(profile.name for profile in self.profiles))
 
     @staticmethod
     def validate_profiles(profiles: list[Profile] | tuple[Profile, ...]) -> None:
@@ -134,6 +142,111 @@ class ControllerService:
         )
         if not self.idle:
             self.display.render(deck)
+        self._update_control()
+
+    def _update_control(self, **changes: object) -> None:
+        if self.control is None:
+            return
+        self.control.update(
+            paused=self.paused,
+            screensaver=self.idle,
+            profile=self.profile.name,
+            profiles=tuple(profile.name for profile in self.profiles),
+            **changes,
+        )
+
+    def process_control_commands(self, deck: DeckInterface) -> None:
+        if self.control is None:
+            return
+        for command, value in self.control.commands():
+            if command == "exit":
+                continue
+            if command == "pause":
+                self.paused = not self.paused
+                if self.paused:
+                    self.idle = False
+                    deck.clear_all()
+                    LOG.info("Controller ueber Tray pausiert")
+                else:
+                    self.last_input = time.monotonic()
+                    self.render_profile(deck)
+                    LOG.info("Controller ueber Tray fortgesetzt")
+            elif command == "screensaver":
+                self.paused = False
+                self.toggle_screensaver(deck)
+            elif command == "profile":
+                self.paused = False
+                if self.idle:
+                    self.stop_screensaver(deck)
+                self.locked = True
+                self.activate_profile(deck, int(value))
+            elif command == "reload":
+                try:
+                    self.reload_configuration(deck)
+                    self.control.update(error=None)
+                except (OSError, SettingsError) as exc:
+                    LOG.error("Konfiguration konnte nicht neu geladen werden: %s", exc)
+                    self.control.update(error=str(exc))
+            elif command == "boot_logo":
+                try:
+                    self.control.update(boot_logo_status="Bootlogo wird geschrieben ...")
+                    deck.set_boot_logo_jpeg(bytes(value))
+                    self.control.update(
+                        boot_logo_status="Bootlogo wurde dauerhaft gespeichert.",
+                        error=None,
+                    )
+                    LOG.info("Bootlogo dauerhaft auf dem Controller gespeichert")
+                except (OSError, ValueError) as exc:
+                    LOG.error("Bootlogo konnte nicht geschrieben werden: %s", exc)
+                    self.control.update(
+                        boot_logo_status=f"Bootlogo-Fehler: {exc}",
+                        error=str(exc),
+                    )
+            self._update_control()
+
+    def reload_configuration(self, deck: DeckInterface) -> None:
+        updated = load_settings(self.config_path)
+        updated_profiles = load_profiles(self.config_path, ALL_PROFILES)
+        self.validate_profiles(updated_profiles)
+        old_name = self.profile.name
+        old_locked = self.locked
+        market_changed = (
+            updated.market_enabled != self.settings.market_enabled
+            or updated.market_watchlist != self.settings.market_watchlist
+            or updated.market_refresh_seconds != self.settings.market_refresh_seconds
+            or updated.market_closed_refresh_seconds != self.settings.market_closed_refresh_seconds
+        )
+        self.settings = updated
+        deck.set_brightness(self.settings.brightness)
+        if market_changed:
+            if self.market_worker is not None:
+                self.market_worker.stop()
+            self.market_worker = None
+            if self.settings.market_enabled:
+                self.market_worker = MarketDataWorker(
+                    YahooMarketDataProvider(),
+                    self.settings.market_watchlist,
+                    refresh_seconds=self.settings.market_refresh_seconds,
+                    closed_refresh_seconds=self.settings.market_closed_refresh_seconds,
+                )
+                self.market_worker.start()
+            self.market_revision = -1
+        if self.profile_runtime.active_index is not None:
+            self.profile_runtime.lifecycle.on_deactivate(self.profile_context(deck))
+        self.profile_runtime = ProfileRuntime(updated_profiles)
+        self.profile_runtime.locked = old_locked
+        target = next(
+            (index for index, profile in enumerate(self.profiles) if profile.name == old_name),
+            self.resolve_profile(self.foreground_provider().process_name),
+        )
+        self.profile_runtime.reset_candidate(target, time.monotonic())
+        self.display.clear_overlays()
+        if self.idle:
+            self.render_market_tiles(deck)
+        elif not self.paused:
+            self.activate_profile(deck, target)
+        self._update_control()
+        LOG.info("Konfiguration ohne Neustart neu geladen: %s", self.config_path)
 
     def render_market_tiles(self, deck: DeckInterface) -> None:
         if not self.settings.market_enabled or self.market_worker is None:
@@ -173,6 +286,7 @@ class ControllerService:
             show_overlay=lambda images, duration: self.show_overlay(
                 deck, images, duration
             ),
+            settings=self.settings,
         )
 
     def set_profile_key(
@@ -449,6 +563,7 @@ class ControllerService:
         self.next_animation_frame = 0.0
         deck.clear_all()
         LOG.info("Screensaver gestartet")
+        self._update_control()
         self.render_market_tiles(deck)
         self.update_idle(deck, time.monotonic() if now is None else now)
 
@@ -462,6 +577,7 @@ class ControllerService:
         else:
             self.display.render(deck)
         LOG.info("Screensaver beendet")
+        self._update_control()
 
     def toggle_screensaver(self, deck: DeckInterface, now: float | None = None) -> None:
         if self.idle:
@@ -551,17 +667,24 @@ class ControllerService:
         if self.idle:
             self.next_animation_frame = 0.0
         LOG.info("Controller aktiv. Strg+C beendet den Dienst.")
+        self._update_control(connected=True, error=None)
 
         while True:
+            if self.control is not None and self.control.stop_requested.is_set():
+                LOG.info("Controller ueber Tray beendet.")
+                return
             if deadline is not None and time.monotonic() >= deadline:
                 LOG.info("Zeitlich begrenzter Lauf beendet.")
                 return
             report = deck.read(timeout_ms=self.settings.hid_read_timeout_ms)
             event = decode_event(report)
-            if event is not None:
+            if event is not None and not self.paused:
                 LOG.debug("Deck-Ereignis: %s", event)
                 self.handle_event(deck, event)
             now = time.monotonic()
+            self.process_control_commands(deck)
+            if self.paused:
+                continue
             self.check_screensaver_hold(deck, now)
             self.check_audio_device_hold(deck, now)
             self.poll_profile_reload(deck, now)
@@ -575,7 +698,10 @@ class ControllerService:
         deadline = time.monotonic() + run_seconds if run_seconds is not None else None
         waiting_logged = False
         try:
-            while deadline is None or time.monotonic() < deadline:
+            while (
+                (deadline is None or time.monotonic() < deadline)
+                and not (self.control is not None and self.control.stop_requested.is_set())
+            ):
                 try:
                     with self.deck_factory() as deck:
                         if waiting_logged:
@@ -584,6 +710,7 @@ class ControllerService:
                         self._connected_loop(deck, deadline)
                         return
                 except (DeckConnectionError, OSError, RuntimeError) as exc:
+                    self._update_control(connected=False, error=str(exc))
                     if not waiting_logged:
                         LOG.warning("SOOMFON nicht verfuegbar: %s", exc)
                         LOG.info(
@@ -600,6 +727,8 @@ class ControllerService:
                         time.sleep(self.settings.reconnect_seconds)
         except KeyboardInterrupt:
             LOG.info("Controller beendet.")
+        finally:
+            self._update_control(connected=False)
 
 
 def run(
@@ -607,8 +736,9 @@ def run(
     screensaver_now: bool = False,
     run_seconds: float | None = None,
     dev_reload: bool = False,
+    control: ControllerControl | None = None,
 ) -> None:
-    service = ControllerService(config_path, dev_reload=dev_reload)
+    service = ControllerService(config_path, dev_reload=dev_reload, control=control)
     if screensaver_now:
         service.last_input = 0.0
     if service.market_worker is not None:

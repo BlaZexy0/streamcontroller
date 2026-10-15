@@ -131,38 +131,42 @@ etwas langsamer, veraendert aber die laufende Controller-Last nicht wesentlich.
 Optionale schwere Integrationen werden deshalb lazy geladen und nicht pauschal
 in den Hauptprozess eingebaut.
 
-Messung auf dem Entwicklungs-PC (16.09.2026): Onefile 17,68 MB, Start bis
-Controller bereit ca. 0,70 Sekunden, Spitzenbelegung des Entpack- und
-Controller-Prozessbaums ca. 45,11 MB.
+Aktuelle Messung auf dem Entwicklungs-PC (17.09.2026, inklusive lokaler
+Spotify-Metadaten): Onefile 19,11 MB, Start bis Controller bereit ca. 0,77
+Sekunden, Spitzenbelegung des Entpack- und Controller-Prozessbaums ca. 48,92 MB.
 
-## Phase 7 – Autostart und Einzelinstanz
+## Phase 7 – Autostart und Einzelinstanz (abgeschlossen)
 
-- [ ] sicherstellen, dass nur eine Controller-Instanz laufen kann
-- [ ] `--install-autostart` und `--remove-autostart` bereitstellen
-- [ ] Autostart nur fuer den aktuellen Benutzer unter `HKCU` einrichten
-- [ ] Pfad zur EXE korrekt quoten
-- [ ] verzögerten Start beziehungsweise USB-Wartephase unterstuetzen
-- [ ] Autostartstatus ueber CLI und spaeter Tray-Menue anzeigen
-- [ ] Eintrag bei Verschieben oder Entfernen der EXE sauber reparieren
+- [x] sicherstellen, dass nur eine Controller-Instanz laufen kann
+- [x] `--install-autostart` und `--remove-autostart` bereitstellen
+- [x] Autostart nur fuer den aktuellen Benutzer unter `HKCU` einrichten
+- [x] Pfad zur EXE korrekt quoten
+- [x] verzögerten Start beziehungsweise USB-Wartephase unterstuetzen
+- [x] Autostartstatus ueber CLI anzeigen; Tray-Menue bleibt Phase 9
+- [x] Eintrag bei Verschieben oder Entfernen der EXE sauber reparieren
 
 Fertig, wenn die Onefile-EXE nach der Windows-Anmeldung ohne Konsole startet,
 sich mit dem Deck verbindet und im Task-Manager deaktiviert werden kann.
 
 ## Phase 8 – Programmprofile ausbauen
 
-- [ ] Spotify: Titel, Interpret, Cover und Wiedergabestatus
-- [ ] Discord: Mikrofon, Deafen und Lautstaerke
+- [x] Spotify: Titel, Interpret, Cover und Wiedergabestatus
+- [ ] Spotify-Anzeige mit laufendem Titel einmal am echten Deck bestaetigen
+- [x] Discord: Mikrofon, Deafen und Lautstaerke
+- [ ] Discord-Kuerzel und App-Lautstaerke einmal in einem echten Sprachkanal bestaetigen
 - [ ] OBS: Szenen, Aufnahme, Stream und Quellenstatus
 - [ ] Browser: Webseiten-spezifische Unterprofile
 - [ ] VS Code: Tests, Debugger, Terminal und Git-Status
 
 ## Phase 9 – Bedienkomfort
 
-- [ ] Windows-Tray-App fuer Status, Pause, Profilwahl und Screensaver
-- [ ] Autostart im Tray-Menue ein-/ausschalten
-- [ ] Konfiguration ohne Neustart neu laden
-- [ ] Logdatei und Diagnosebericht aus dem Tray oeffnen
-- [ ] lokaler Profil-Editor als spaeteres Teilprojekt
+- [x] Windows-Tray-App fuer Status, Pause, Profilwahl und Screensaver
+- [x] Autostart im Tray-Menue ein-/ausschalten
+- [x] Konfiguration ohne Neustart neu laden
+- [x] Logdatei und Diagnosebericht aus dem Tray oeffnen
+- [x] Tray-Menue einmal im echten Autostartbetrieb bestaetigen
+- [x] lokaler Profil-Editor fuer Profile, Prozesse, Farben und Tastenaktionen
+- [ ] Profil-Editor einmal im echten Tray testen
 
 ## Empfohlene Abarbeitungsreihenfolge
 

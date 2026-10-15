@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw
 
 from ..core.audio import AudioDeviceState, AudioState
 from ..core.device import IMAGE_SIZE
-from .profile_screen import _font
+from .fonts import ui_font as _font
 
 
 def _tile(background: tuple[int, int, int]) -> tuple[Image.Image, ImageDraw.ImageDraw]:

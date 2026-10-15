@@ -19,6 +19,7 @@ IMAGE_SIZE = (60, 60)
 JPEG_SIZE = (64, 64)
 CRT = b"\x00CRT\x00\x00"
 ACK = b"ACK"
+ACK_OK = b"ACK\x00\x00OK"
 
 
 class DeckConnectionError(OSError):
@@ -71,6 +72,12 @@ def _image_header(key: int, size: int) -> bytes:
     return _command(
         bytes((0x42, 0x41, 0x54, 0, 0, (size >> 8) & 0xFF, size & 0xFF, key + 1))
     )
+
+
+def _boot_logo_header(size: int) -> bytes:
+    if not 0 < size <= 0xFFFF:
+        raise ValueError("Bootlogo-JPEG muss zwischen 1 und 65535 Bytes gross sein")
+    return _command(bytes((0x4C, 0x4F, 0x47, 0, 0, (size >> 8) & 0xFF, size & 0xFF)))
 
 
 def encode_image(image: Image.Image) -> bytes:
@@ -180,6 +187,31 @@ class Deck:
             self._write_unlocked(_clear_all())
             self._write_unlocked(STOP)
         self._last_images = [None] * 6
+
+    def set_boot_logo_jpeg(self, data: bytes) -> None:
+        """Persist a prepared 240x320 JPEG as the controller boot logo."""
+
+        if not data.startswith(b"\xff\xd8") or not data.endswith(b"\xff\xd9"):
+            raise ValueError("Bootlogo-Daten sind kein vollstaendiges JPEG")
+        with Image.open(io.BytesIO(data)) as image:
+            if image.size != (240, 320) or image.format != "JPEG":
+                raise ValueError("Bootlogo muss ein JPEG mit 240x320 Pixeln sein")
+        with self._write_lock:
+            self._write_unlocked(_boot_logo_header(len(data)))
+            # Mirajazz v2/v3 commits the LOG command before receiving its data.
+            self._write_unlocked(STOP)
+            for offset in range(0, len(data), PACKET_SIZE):
+                chunk = data[offset : offset + PACKET_SIZE]
+                self._write_unlocked(b"\x00" + chunk.ljust(PACKET_SIZE, b"\x00"))
+
+        # Firmware acknowledges the flash write. Ignore unrelated queued key
+        # events briefly, but fail instead of reporting a write that was never
+        # confirmed.
+        for _ in range(10):
+            response = self.read(timeout_ms=150)
+            if response.startswith(ACK_OK):
+                return
+        raise DeckConnectionError("Controller hat das Bootlogo nicht bestaetigt")
 
     def read(self, timeout_ms: int = 50) -> bytes:
         try:

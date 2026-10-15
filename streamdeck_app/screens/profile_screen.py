@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from ..core.device import IMAGE_SIZE
 from ..profiles.model import Button
+from .fonts import ui_font
 
 
-def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    try:
-        return ImageFont.truetype("segoeuib.ttf", size)
-    except OSError:
-        return ImageFont.load_default(size=size)
+_font = ui_font
 
 
 def profile_tile(button: Button, locked: bool = False) -> Image.Image:

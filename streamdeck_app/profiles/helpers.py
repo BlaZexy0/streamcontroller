@@ -19,3 +19,7 @@ def open_target(target: str) -> Action:
 
 def launch(*command: str) -> Action:
     return {"type": "launch", "command": list(command)}
+
+
+def internal(name: str) -> Action:
+    return {"type": "internal", "name": name}

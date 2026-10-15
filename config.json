@@ -21,6 +21,11 @@
     {"symbol": "MWRE.DE", "label": "ETF"},
     {"symbol": "NVDA", "label": "NVIDIA"}
   ],
+  "uptime_kuma_enabled": true,
+  "uptime_kuma_url": "http://192.168.0.39:3001",
+  "uptime_kuma_status_page": "all",
+  "uptime_kuma_refresh_seconds": 15,
+  "uptime_kuma_timeout_seconds": 5,
   "ignored_processes": [
     "searchhost.exe",
     "startmenuexperiencehost.exe",

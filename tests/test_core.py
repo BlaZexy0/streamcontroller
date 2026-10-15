@@ -7,7 +7,14 @@ from pathlib import Path
 
 from PIL import Image
 
-from streamdeck_app.core.device import JPEG_SIZE, REPORT_SIZE, decode_event, encode_image
+from streamdeck_app.boot_logo import TRANSPORT_SIZE, VISIBLE_SIZE, prepare_boot_logo
+from streamdeck_app.core.device import (
+    JPEG_SIZE,
+    REPORT_SIZE,
+    _boot_logo_header,
+    decode_event,
+    encode_image,
+)
 from streamdeck_app.profiles import ALL_PROFILES, ProfileLifecycle, discover_profiles
 from streamdeck_app.profiles.runtime import ProfileRuntime
 from streamdeck_app.profiles.reload import ProfileReloader
@@ -56,6 +63,26 @@ class DeviceProtocolTests(unittest.TestCase):
         dark = decoded.getpixel((7, 2))[0]
         self.assertGreater(abs(light - dark), 240)
 
+    def test_boot_logo_header_uses_v2_log_command_and_jpeg_size(self) -> None:
+        header = _boot_logo_header(0x1234)
+        self.assertEqual(header[:13], b"\x00CRT\x00\x00LOG\x00\x00\x12\x34")
+        self.assertEqual(len(header), REPORT_SIZE)
+
+    def test_boot_logo_is_cropped_rotated_and_metadata_free(self) -> None:
+        source = Image.new("RGB", (800, 300), "red")
+        source.info["comment"] = b"must disappear"
+        raw = io.BytesIO()
+        source.save(raw, format="JPEG", exif=b"Exif\x00\x00test")
+
+        preview, transport = prepare_boot_logo(raw.getvalue())
+        with Image.open(io.BytesIO(preview)) as image:
+            self.assertEqual(image.size, VISIBLE_SIZE)
+            self.assertFalse(image.getexif())
+            self.assertNotIn("comment", image.info)
+        with Image.open(io.BytesIO(transport)) as image:
+            self.assertEqual(image.size, TRANSPORT_SIZE)
+            self.assertFalse(image.getexif())
+
 
 class ProfileTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -75,7 +102,7 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(discovered, ALL_PROFILES)
         self.assertEqual(
             [profile.name for profile in discovered],
-            ["Desktop", "Browser", "VS Code", "Explorer", "Spotify"],
+            ["Desktop", "Browser", "VS Code", "Explorer", "Discord", "Spotify", "Dienste"],
         )
 
     def test_profile_tile_size(self) -> None:
@@ -108,7 +135,7 @@ class ProfileTests(unittest.TestCase):
                 interval_seconds=1.0,
             )
             self.assertIsNone(reloader.poll(0.0))
-            source.write_text("PROFILE = 2\n", encoding="utf-8")
+            source.write_text("PROFILE = 22\n", encoding="utf-8")
             self.assertIsNone(reloader.poll(0.5))
             self.assertEqual(reloader.poll(1.0), ALL_PROFILES)
             self.assertEqual(len(calls), 1)

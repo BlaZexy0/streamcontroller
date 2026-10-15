@@ -30,6 +30,25 @@ Explorer und Spotify. Globale Hardware- und Zeiteinstellungen liegen in
 - rechter kleiner Encoder: Mikrofonlautstaerke, kurz druecken = stumm
 - rechten kleinen Encoder zwei Sekunden druecken: Audioausgabe wechseln
 - Screensaver, untere drei LCDs: konfigurierbare Aktienkurse mit Tagesveraenderung
+- manuelle Seite `Dienste`: Status und Antwortzeit aus einer Uptime-Kuma-Statusseite
+
+Im Spotify-Profil bleiben oben Zurueck, Play/Pause und Weiter erhalten. Die
+mittlere obere Kachel zeigt das Cover samt Wiedergabestatus; unten laufen
+Interpret und Titel ueber alle drei Displays. Die Beschriftungen `VOL-`,
+`MUTE` und `VOL+` zeigen weiterhin die Aktionen der unteren Tasten. Die Daten
+kommen alle zwei Sekunden aus der lokalen Windows-Mediensitzung. Es gibt
+keinen Spotify-Login, keine Spotify-Web-API und keine Netzwerkabfrage durch
+dieses Profil. Spotify muss mindestens einmal eine Wiedergabe gestartet haben,
+damit Windows eine Sitzung samt Metadaten bereitstellt.
+
+Das Discord-Profil wird fuer Discord Stable, PTB, Canary und Vesktop erkannt.
+Oben liegen Mikrofon umschalten, Deafen umschalten und zum verbundenen
+Sprachkanal springen. Unten liegen Discord leiser, Discord-Audio stummschalten
+und Discord lauter. Mikrofon und Deafen verwenden die offiziellen
+Windows-Kuerzel `Strg+Umschalt+M` und `Strg+Umschalt+D`; danach bestaetigt ein
+kurzes Overlay die gesendete Aktion. Discord stellt den tatsaechlichen
+Mute-Zustand ohne weitergehende Konto-/IPC-Anbindung nicht verlaesslich bereit,
+daher behauptet das Overlay bewusst keinen Zustand.
 
 Die Kursanzeige ist in `config.json` ueber `market_enabled`,
 `market_refresh_seconds`, `market_closed_refresh_seconds`,
@@ -69,13 +88,75 @@ leere Liste wechselt durch alle momentan aktiven Windows-Ausgabegeraete.
 
 Mit `Strg+C` wird der Dienst beendet.
 
+## Uptime-Kuma-Dienste
+
+Das manuell anwählbare Profil `Dienste` zeigt bis zu sechs veröffentlichte
+Monitore gleichzeitig. Grün bedeutet online, Rot offline und Gelb Wartung.
+Mit dem rechten kleinen Encoder wird bei mehr als sechs Diensten geblättert;
+ein Druck auf eine LCD-Taste öffnet das Uptime-Kuma-Dashboard.
+
+Die Integration nutzt ausschließlich die öffentlichen, lesenden Endpunkte
+einer Uptime-Kuma-Statusseite. In Uptime Kuma zuerst unter `Statusseiten` eine
+Seite erstellen, die gewünschten Monitore hinzufügen und deren Slug in
+`uptime_kuma_status_page` in `config.json` eintragen. Beispiel für
+`http://192.168.0.39:3001/status/homelab`: `"uptime_kuma_status_page": "homelab"`.
+Es werden weder Benutzername noch Passwort im Controller gespeichert. Abruf,
+Timeout und Abschalten lassen sich über die übrigen `uptime_kuma_*`-Werte
+konfigurieren.
+
+## Windows-Tray-Menue
+
+Bei einem normalen Start erscheint der Controller im Windows-Infobereich. Das
+Tray-Menue zeigt Verbindung, aktives Profil und Betriebszustand. Darueber kann
+man den Controller pausieren oder fortsetzen, den Screensaver umschalten, ein
+Profil fest auswaehlen und den Autostart ein- oder ausschalten.
+
+`Konfiguration neu laden` uebernimmt Aenderungen an der aktiven `config.json`
+ohne Neustart. Fehlerhafte Aenderungen werden ins Log geschrieben und der
+zuletzt gueltige Stand bleibt aktiv. Das Menue kann Konfiguration und Logdatei
+direkt oeffnen. `Diagnosebericht erstellen` schreibt und oeffnet
+`%LOCALAPPDATA%\SoomfonController\diagnostic_report.json` mit Zustand und
+Laufzeitpfaden, aber ohne Zugangsdaten.
+
+`Profil-Editor öffnen` startet einen kleinen lokalen Editor im Standardbrowser.
+Er ist nur ueber `127.0.0.1` und eine zufaellige Sitzungsadresse erreichbar.
+Dort lassen sich Profilname, erkannte Prozessdateien, Reihenfolge sowie alle
+sechs Beschriftungen, Farben und Aktionen bearbeiten. Neue Profile koennen
+angelegt und vorhandene geloescht werden; mindestens ein Fallback-Profil ohne
+Prozess muss bestehen bleiben. Beim Speichern entsteht neben der aktiven
+Konfiguration eine `profiles.json`, und das Deck uebernimmt die Aenderungen
+ohne Neustart. `Werkseinstellungen wiederherstellen` entfernt diese Datei.
+
+Im Abschnitt `Bootlogo` kann ausserdem das Bild geaendert werden, das der
+Controller direkt nach dem Einschalten zeigt. Die Vorschau wird mittig auf
+320 x 240 Pixel zugeschnitten, ohne EXIF- oder sonstige Bildmetadaten neu als
+JPEG erzeugt und erst nach einer Sicherheitsabfrage dauerhaft auf das Geraet
+geschrieben. Die zuletzt gewaehlte Vorschau liegt als `boot_logo.jpg` neben
+der aktiven Konfiguration. Das Bootlogo wird nicht bei jedem Programmstart
+erneut geschrieben.
+
+Aktionswerte im Editor:
+
+- `key`: ein Tastenname wie `f5` oder `media_play_pause`
+- `hotkey`: Tasten mit `+`, beispielsweise `ctrl+shift+p`
+- `open`: URL, Datei oder Windows-Einstellungsadresse
+- `launch`: Programm und Argumente mit `|`, etwa `notepad.exe | datei.txt`
+- `internal`: eine vorhandene Controller-Aktion wie `system_volume_mute`
+- `none`: nur Anzeige, keine Aktion
+
+Fuer Diagnose- oder Konsolenbetrieb laesst sich das Tray abschalten:
+
+```powershell
+.\.venv\Scripts\python.exe .\controller.py --no-tray --verbose
+```
+
 ## Windows-EXE bauen
 
 Die reproduzierbaren PyInstaller-Builds werden so erstellt:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
-.\build_controller.ps1 all
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build_controller.ps1 all
 ```
 
 Ergebnisse:
@@ -95,8 +176,8 @@ verwendet weiterhin die `config.json` im Projektverzeichnis.
 Nur einen Buildtyp erzeugen:
 
 ```powershell
-.\build_controller.ps1 onedir
-.\build_controller.ps1 onefile
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build_controller.ps1 onedir
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build_controller.ps1 onefile
 ```
 
 Messung der gebauten Onefile-EXE:
@@ -104,6 +185,33 @@ Messung der gebauten Onefile-EXE:
 ```powershell
 .\.venv\Scripts\python.exe -m tools.benchmark_build --duration 5
 ```
+
+## Windows-Autostart
+
+Der Controller ist fuer den aktuellen Benutzer im Windows-Autostart
+eingerichtet. Standardmaessig wartet er nach der Anmeldung zehn Sekunden und
+verbindet sich danach mit dem Deck. Ist das Deck noch nicht vorhanden, laeuft
+die vorhandene USB-Wiederverbindung weiter.
+
+Autostart installieren oder nach Verschieben/Neubauen der EXE reparieren:
+
+```powershell
+.\.venv\Scripts\python.exe .\controller.py --install-autostart
+```
+
+Andere Startverzoegerung, Status und Entfernen:
+
+```powershell
+.\.venv\Scripts\python.exe .\controller.py --install-autostart --autostart-delay 20
+.\.venv\Scripts\python.exe .\controller.py --autostart-status
+.\.venv\Scripts\python.exe .\controller.py --remove-autostart
+```
+
+Der Eintrag liegt ausschliesslich unter
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`; Administratorrechte
+sind nicht erforderlich. Ein benannter Windows-Mutex verhindert, dass durch
+Autostart, Doppelklick oder Skript versehentlich zwei Controller gleichzeitig
+auf dasselbe HID-Geraet zugreifen.
 
 Beim Entwickeln neuer Profile koennen Aenderungen ohne Neustart geladen werden:
 
@@ -165,11 +273,22 @@ streamdeck_app/
 |   |-- model.py           # anbieterunabhaengige Kursmodelle
 |   |-- provider.py        # read-only Marktdatenadapter
 |   `-- worker.py          # langsamer Hintergrundabruf, Cache und Backoff
+|-- media/
+|   |-- model.py           # lokaler, anbieterunabhaengiger Medienzustand
+|   `-- worker.py          # blockierungsfreier Spotify-Abruf alle zwei Sekunden
+|-- integrations/
+|   `-- windows_media.py   # lokale Windows-Mediensitzung fuer Spotify
 |-- paths.py               # Bundle-Ressourcen und LOCALAPPDATA
 |-- logging_setup.py       # begrenzte Datei- und Konsolenlogs
+|-- autostart.py           # HKCU-Autostart installieren und pruefen
+|-- control.py             # thread-sichere Befehle und Laufzeitstatus
+|-- tray.py                # Windows-Infobereich und Bedienmenue
+|-- single_instance.py     # zweite Controller-Instanz verhindern
 |-- screens/
 |   |-- display.py         # dynamische LCD-Inhalte und Overlay-Stapel
+|   |-- discord.py         # Bestaetigung fuer Sprachaktionen
 |   |-- market.py          # Kurskacheln im Screensaver
+|   |-- spotify.py         # Cover, Status, Interpret und Titel
 |   |-- profile_screen.py  # normale LCD-Tasten
 |   `-- screensaver.py     # Idle-Animation
 `-- service.py             # verbindet Ereignisse, Profile und Anzeigen

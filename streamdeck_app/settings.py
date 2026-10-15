@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .core.actions import VK
 from .market.model import WatchItem
@@ -36,6 +37,11 @@ class Settings:
     market_closed_refresh_seconds: float
     market_stale_seconds: float
     market_watchlist: tuple[WatchItem, ...]
+    uptime_kuma_enabled: bool
+    uptime_kuma_url: str
+    uptime_kuma_status_page: str
+    uptime_kuma_refresh_seconds: float
+    uptime_kuma_timeout_seconds: float
     ignored_processes: frozenset[str]
     hardware_buttons: dict[int, Action]
     encoders: dict[int, dict[str, Action]]
@@ -60,6 +66,11 @@ _TOP_LEVEL_KEYS = {
     "market_closed_refresh_seconds",
     "market_stale_seconds",
     "market_watchlist",
+    "uptime_kuma_enabled",
+    "uptime_kuma_url",
+    "uptime_kuma_status_page",
+    "uptime_kuma_refresh_seconds",
+    "uptime_kuma_timeout_seconds",
     "ignored_processes",
     "hardware_buttons",
     "encoders",
@@ -125,7 +136,7 @@ def validate_action(action: Any, location: str) -> Action:
 
 def load_settings(path: Path) -> Settings:
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError as exc:
         raise SettingsError(f"Konfigurationsdatei fehlt: {path}") from exc
     except json.JSONDecodeError as exc:
@@ -232,6 +243,32 @@ def load_settings(path: Path) -> Settings:
     if len(set(symbols)) != len(symbols):
         raise SettingsError("market_watchlist darf keine doppelten Symbole enthalten")
 
+    uptime_kuma_enabled = raw.get("uptime_kuma_enabled", False)
+    if not isinstance(uptime_kuma_enabled, bool):
+        raise SettingsError("uptime_kuma_enabled muss true oder false sein")
+    uptime_kuma_url = raw.get("uptime_kuma_url", "")
+    if not isinstance(uptime_kuma_url, str):
+        raise SettingsError("uptime_kuma_url muss eine URL sein")
+    uptime_kuma_url = uptime_kuma_url.strip().rstrip("/")
+    if uptime_kuma_url:
+        parsed_url = urlparse(uptime_kuma_url)
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            raise SettingsError("uptime_kuma_url muss mit http:// oder https:// beginnen")
+    uptime_kuma_status_page = raw.get("uptime_kuma_status_page", "")
+    if not isinstance(uptime_kuma_status_page, str):
+        raise SettingsError("uptime_kuma_status_page muss Text sein")
+    uptime_kuma_status_page = uptime_kuma_status_page.strip().strip("/")
+    if len(uptime_kuma_status_page) > 100:
+        raise SettingsError("uptime_kuma_status_page darf hoechstens 100 Zeichen haben")
+    uptime_kuma_refresh_seconds = _number(raw, "uptime_kuma_refresh_seconds", 15)
+    uptime_kuma_timeout_seconds = _number(raw, "uptime_kuma_timeout_seconds", 5)
+    if not 5 <= uptime_kuma_refresh_seconds <= 3600:
+        raise SettingsError("uptime_kuma_refresh_seconds muss zwischen 5 und 3600 liegen")
+    if not 1 <= uptime_kuma_timeout_seconds <= 30:
+        raise SettingsError("uptime_kuma_timeout_seconds muss zwischen 1 und 30 liegen")
+    if uptime_kuma_enabled and not uptime_kuma_url:
+        raise SettingsError("uptime_kuma_url darf bei aktivierter Anzeige nicht leer sein")
+
     ignored_raw = raw.get("ignored_processes", [])
     if not isinstance(ignored_raw, list) or not all(isinstance(item, str) for item in ignored_raw):
         raise SettingsError("ignored_processes muss eine Liste von Dateinamen sein")
@@ -287,6 +324,11 @@ def load_settings(path: Path) -> Settings:
         market_closed_refresh_seconds=market_closed_refresh_seconds,
         market_stale_seconds=market_stale_seconds,
         market_watchlist=tuple(market_watchlist),
+        uptime_kuma_enabled=uptime_kuma_enabled,
+        uptime_kuma_url=uptime_kuma_url,
+        uptime_kuma_status_page=uptime_kuma_status_page,
+        uptime_kuma_refresh_seconds=uptime_kuma_refresh_seconds,
+        uptime_kuma_timeout_seconds=uptime_kuma_timeout_seconds,
         ignored_processes=frozenset(item.lower() for item in ignored_raw),
         hardware_buttons=hardware_buttons,
         encoders=encoders,

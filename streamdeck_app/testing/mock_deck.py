@@ -21,6 +21,7 @@ class MockDeck:
         self.first_display_at: float | None = None
         self.closed = False
         self.operations: list[str] = []
+        self.boot_logo: bytes | None = None
 
     def __enter__(self) -> "MockDeck":
         self.closed = False
@@ -60,6 +61,13 @@ class MockDeck:
         self.operations.append("clear")
         self.command_count += 2
         self.bytes_written += 2050
+
+    def set_boot_logo_jpeg(self, data: bytes) -> None:
+        self.boot_logo = data
+        self.operations.append("boot-logo")
+        chunks = max(1, (len(data) + 1023) // 1024)
+        self.command_count += chunks + 2
+        self.bytes_written += (chunks + 2) * 1025
 
     def read(self, timeout_ms: int = 100) -> bytes:
         try:

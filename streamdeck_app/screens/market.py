@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 from ..core.device import IMAGE_SIZE
 from ..market.model import MarketResult, WatchItem
-from .profile_screen import _font
+from .fonts import ui_font as _font
 
 
 def market_tile(

@@ -6,7 +6,18 @@ from PyInstaller.utils.hooks import collect_submodules
 
 
 project_root = Path(SPECPATH)
-hiddenimports = collect_submodules("streamdeck_app.profiles")
+hiddenimports = collect_submodules("streamdeck_app.profiles") + [
+    "streamdeck_app.integrations",
+    "streamdeck_app.integrations.windows_media",
+    "streamdeck_app.media",
+    "streamdeck_app.media.model",
+    "streamdeck_app.media.worker",
+    "streamdeck_app.profile_editor",
+    "streamdeck_app.profile_overrides",
+    "streamdeck_app.screens.discord",
+    "streamdeck_app.screens.spotify",
+    "pystray._win32",
+]
 datas = [
     (str(project_root / "config.json"), "."),
     (str(project_root / "assets" / "screensaver"), "assets/screensaver"),

@@ -5,6 +5,7 @@ from .display import DisplayContent, DisplayController
 from .market import market_tile
 from .profile_screen import profile_tile
 from .screensaver import IdleAnimation
+from .uptime import uptime_message_tile, uptime_tile
 
 __all__ = [
     "DisplayContent",
@@ -15,6 +16,6 @@ __all__ = [
     "message_overlay",
     "market_tile",
     "volume_overlay",
+    "uptime_message_tile",
+    "uptime_tile",
 ]
-
-__all__ = ["IdleAnimation", "profile_tile"]

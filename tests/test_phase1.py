@@ -37,7 +37,15 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.market_stale_seconds, 180)
         self.assertEqual(len(settings.market_watchlist), 3)
         self.assertEqual(len({item.symbol for item in settings.market_watchlist}), 3)
+        self.assertTrue(settings.uptime_kuma_enabled)
+        self.assertEqual(settings.uptime_kuma_status_page, "all")
         self.assertIn(0, settings.encoders)
+
+    def test_utf8_bom_configuration_is_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.json"
+            path.write_text("{}", encoding="utf-8-sig")
+            self.assertEqual(load_settings(path).brightness, 65)
 
     def test_unknown_field_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
